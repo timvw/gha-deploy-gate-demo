@@ -1,0 +1,36 @@
+name: B - ci and dev
+
+# ── Proposed design, part 1 of 2 ───────────────────────────────────────
+# This workflow stops after dev. It always completes, and is never held
+# open waiting for a human, so it can never be cancelled while parked.
+#
+# Concurrency is per JOB rather than per workflow:
+#   ci          -> supersede freely, that is what it is for
+#   deploy-dev  -> QUEUE, never interrupt an in-flight apply
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - run: |
+          echo "building $GITHUB_SHA"
+          sleep 10
+
+  deploy-dev:
+    needs: ci
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false      # <- queue behind an in-flight apply
+    steps:
+      - run: |
+          echo "terraform apply -> dev   (pretend this takes a while)"
+          for i in $(seq 1 12); do echo "  applying... ${i}/12"; sleep 5; done
+          echo "dev now runs ${GITHUB_SHA:0:7}"

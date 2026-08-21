@@ -1,0 +1,41 @@
+name: A - inline gate (current)
+
+# ── The design used today by cicd-dev.yml ──────────────────────────────
+# One workflow holds ci -> deploy-dev -> deploy-test, and deploy-test is
+# gated on an environment with required reviewers.
+#
+# The concurrency block is WORKFLOW level, so it covers every job in the
+# run. A run parked on the approval gate still counts as "in progress",
+# so the next push to main cancels it -- taking deploy-dev with it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "building $GITHUB_SHA"
+          sleep 10
+
+  deploy-dev:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "terraform apply -> dev   (pretend this takes a while)"
+          for i in $(seq 1 12); do echo "  applying... ${i}/12"; sleep 5; done
+          echo "dev now runs ${GITHUB_SHA:0:7}"
+
+  deploy-test:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: test-inline          # <- the gate. Run parks here.
+    steps:
+      - run: echo "test now runs ${GITHUB_SHA:0:7}"

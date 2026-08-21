@@ -1,0 +1,33 @@
+name: B - deploy to test
+
+# ── Proposed design, part 2 of 2 ───────────────────────────────────────
+# The gate lives in its own workflow, triggered once "B - ci and dev"
+# succeeds. Same approval UX as before, but now the thing sitting in
+# `waiting` IS the deploy -- clearly named, obvious in the Actions list,
+# and holding nothing else hostage.
+#
+# Concurrency covers only the deploy, so a newer commit supersedes a
+# pending approval (you never want to approve a stale SHA) without
+# touching ci or dev.
+on:
+  workflow_run:
+    workflows: ["B - ci and dev"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-test
+  cancel-in-progress: true
+
+jobs:
+  deploy-test:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: test-split           # <- the gate. Only this run parks.
+    steps:
+      - run: |
+          echo "test now runs ${SHA:0:7}"
+          echo "from: $MSG"
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          MSG: ${{ github.event.workflow_run.head_commit.message }}
